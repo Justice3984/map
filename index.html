@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map-Rivers State</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+</head>
+<body>
+  
+    <div class="input-section">
+        <label for="destination-type">Category:</label>
+        <select id="destination-type">
+            <option value="school">School</option>
+            <option value="hospital">Hospital</option>
+            <option value="both">Both</option>
+        </select>
+
+        <label for="manual-location">Current Location (Address or Coordinates):</label>
+        <input type="text" id="manual-location" placeholder="Enter address or coordinates">
+
+        <button onclick="findNearestLocation()">Search</button>
+        
+    </div>
+
+    <div id="map" style="height: 600px;"></div>
+
+    <script>
+        const map = L.map('map').setView([4.8156, 7.0498], 12); // Center on Rivers State, Nigeria
+
+        // Load OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // replace the dataset of real dataset
+        // Sample dataset for schools and hospitals in Rivers State
+        const locations = [
+            { name: "School 1", type: "school", lat: 4.8326, lng: 7.0518 },
+            { name: "School 2", type: "school", lat: 4.8231, lng: 7.0425 },
+            { name: "Hospital 1", type: "hospital", lat: 4.8258, lng: 7.0336 },
+            { name: "Hospital 2", type: "hospital", lat: 4.8382, lng: 7.0201 }
+        ];
+
+        let userMarker, userLatLng;
+
+        // Function to capture user location automatically
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                userLatLng = [position.coords.latitude, position.coords.longitude];
+                document.getElementById('manual-location').value = `${userLatLng[0]}, ${userLatLng[1]}`;
+
+                // Add a marker for the user's location
+                userMarker = L.marker(userLatLng, { icon: L.icon({ iconUrl: 'loc-icon.png', iconSize: [25, 41] }) })
+                    .addTo(map)
+                    .bindPopup("You are here")
+                    .openPopup();
+                map.setView(userLatLng, 13);
+            });
+        }
+
+        // Function to find nearest schools or hospitals
+        function findNearestLocation() {
+            const inputLocation = document.getElementById('manual-location').value;
+            const category = document.getElementById('destination-type').value;
+
+            // Geocode if input is an address
+            if (isNaN(parseFloat(inputLocation.split(',')[0]))) {
+                geocodeAddress(inputLocation, category);
+            } else {
+                const coords = inputLocation.split(',').map(Number);
+                searchNearby(coords, category);
+            }
+        }
+
+        // Geocoding function to convert addresses into coordinates
+        function geocodeAddress(address, category) {
+            const geocoder = L.Control.Geocoder.nominatim();
+            geocoder.geocode(address, (results) => {
+                if (results.length > 0) {
+                    const latLng = [results[0].center.lat, results[0].center.lng];
+                    searchNearby(latLng, category);
+                } else {
+                    alert("Address not found.");
+                }
+            });
+        }
+
+        // Function to search for schools or hospitals near the user's coordinates
+        function searchNearby(coords, category) {
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+
+            userMarker = L.marker(coords, { icon: L.icon({ iconUrl: 'loc-icon.png', iconSize: [25, 41] }) })
+                .addTo(map)
+                .bindPopup("You are here")
+                .openPopup();
+
+            const filteredLocations = locations.filter(location => {
+                return category === 'both' || location.type === category;
+            });
+
+            filteredLocations.forEach(location => {
+                const markerIcon = L.icon({
+                    iconUrl: location.type === 'school' ? 'school.png' : 'hospital.png',
+                    iconSize: [25, 41]
+                });
+
+                const marker = L.marker([location.lat, location.lng], { icon: markerIcon }).addTo(map);
+                marker.bindPopup(`${location.name} (${location.type})`);
+
+                // Calculate distance and route
+                L.Routing.control({
+                    waypoints: [
+                        L.latLng(coords[0], coords[1]),
+                        L.latLng(location.lat, location.lng)
+                    ],
+                    lineOptions: {
+                        styles: [{ color: location.type === 'school' ? 'blue' : 'red', weight: 4 }]
+                    },
+                    createMarker: () => null // Prevent showing default markers
+                }).addTo(map);
+            });
+        }
+    </script>
+</body>
+</html>
